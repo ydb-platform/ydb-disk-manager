@@ -1,0 +1,30 @@
+image:
+  repository: "cr.yandex/crpl7ipeu79oseqhcgn2/ydb-disk-manager"
+  pullPolicy: "IfNotPresent"
+
+args: []
+env:
+  - name: DP_DISABLE_PRE_START_CONTAINER
+    value: "true"
+
+resources:
+  limits:
+    memory: 50Mi
+  requests:
+    cpu: 50m
+    memory: 10Mi
+
+securityContext:
+  privileged: true
+
+priorityClassName: "system-node-critical"
+
+dnsPolicy: ""
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+diskRegexp: ^sd[a-z][0-9]*$
+hostProcPath: /host/proc
+updateInterval: 30s

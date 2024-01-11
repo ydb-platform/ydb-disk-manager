@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "github.com/ydb-platform/ydb-disk-manager/proto/locks";
+
+service Locks {
+    rpc SetLocks (LocksRequest) returns (LocksResponse) {}
+    rpc ReleaseLocks (LocksRequest) returns (LocksResponse) {}
+}
+
+message LocksRequest {}
+
+message LocksResponse {}

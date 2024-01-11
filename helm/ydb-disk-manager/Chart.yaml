@@ -1,0 +1,7 @@
+apiVersion: v2
+name: ydb-disk-manager
+
+type: application
+
+version: 0.2.7
+appVersion: 0.2.7

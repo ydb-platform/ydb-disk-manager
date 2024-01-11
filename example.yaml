@@ -1,0 +1,83 @@
+---
+# Source: ydb-disk-manager/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ydb-disk-manager-config
+data:
+  conf.yaml: |
+    diskMatch: "^sd[a-z][0-9]*$"
+    hostProcPath: "/host/proc"
+    updateInterval: "30s"
+---
+# Source: ydb-disk-manager/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ydb-disk-manager
+  labels:
+    helm.sh/chart: ydb-disk-manager-0.2.5
+    app.kubernetes.io/name: ydb-disk-manager
+    app.kubernetes.io/instance: ydb-disk-manager
+    app.kubernetes.io/version: "0.2.5"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ydb-disk-manager
+      app.kubernetes.io/instance: ydb-disk-manager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ydb-disk-manager
+        app.kubernetes.io/instance: ydb-disk-manager
+    spec:
+      priorityClassName: system-node-critical
+      containers:
+      - name: ydb-disk-manager
+        securityContext:
+          privileged: true
+        image: "cr.yandex/crpl7ipeu79oseqhcgn2/ydb-disk-manager:0.2.5"
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: 50Mi
+          requests:
+            cpu: 50m
+            memory: 10Mi
+        env:
+          - name: DP_DISABLE_PRE_START_CONTAINER
+            value: "true"
+        volumeMounts:
+          - name: device-plugin
+            mountPath: /var/lib/kubelet/device-plugins
+          - name: proc-dir
+            mountPath: /host/proc
+            readOnly: true
+          - name: dev-dir
+            mountPath: /dev
+          - name: sys-dir
+            mountPath: /sys
+          - name: config
+            mountPath: /root/config
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: proc-dir
+          hostPath:
+            path: /proc
+        - name: dev-dir
+          hostPath:
+            path: /dev
+        - name: sys-dir
+          hostPath:
+            path: /sys
+        - name: config
+          configMap:
+             name: ydb-disk-manager-config
