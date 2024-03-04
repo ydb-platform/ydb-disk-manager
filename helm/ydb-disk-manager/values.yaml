@@ -2,6 +2,7 @@ image:
   repository: "cr.yandex/crpl7ipeu79oseqhcgn2/ydb-disk-manager"
   pullPolicy: "IfNotPresent"
 
+imagePullSecrets: []
 args: []
 env:
   - name: DP_DISABLE_PRE_START_CONTAINER
