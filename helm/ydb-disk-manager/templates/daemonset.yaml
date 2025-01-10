@@ -5,6 +5,12 @@ metadata:
   labels:
     {{- include "ydb-disk-manager.labels" . | nindent 4 }}
 spec:
+  updateStrategy:
+    {{- if eq .Values.updateStrategy "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.maxUnavailable }}
+    {{- end }}
+    type: {{ .Values.updateStrategy }}
   selector:
     matchLabels:
       {{- include "ydb-disk-manager.selectorLabels" . | nindent 6 }}
