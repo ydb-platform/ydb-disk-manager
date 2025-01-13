@@ -2,6 +2,9 @@ image:
   repository: "cr.yandex/crpl7ipeu79oseqhcgn2/ydb-disk-manager"
   pullPolicy: "IfNotPresent"
 
+updateStrategy: "RollingUpdate"
+maxUnavailable: "10%"
+
 imagePullSecrets: []
 args: []
 env:
@@ -10,10 +13,10 @@ env:
 
 resources:
   limits:
-    memory: 50Mi
+    memory: 128Mi
   requests:
-    cpu: 50m
-    memory: 10Mi
+    cpu: 100m
+    memory: 128Mi
 
 securityContext:
   privileged: true

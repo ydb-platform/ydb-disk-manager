@@ -16,12 +16,16 @@ kind: DaemonSet
 metadata:
   name: ydb-disk-manager
   labels:
-    helm.sh/chart: ydb-disk-manager-0.2.5
+    helm.sh/chart: ydb-disk-manager-0.2.8
     app.kubernetes.io/name: ydb-disk-manager
     app.kubernetes.io/instance: ydb-disk-manager
-    app.kubernetes.io/version: "0.2.5"
+    app.kubernetes.io/version: "0.2.8"
     app.kubernetes.io/managed-by: Helm
 spec:
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 10%
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ydb-disk-manager
@@ -37,14 +41,14 @@ spec:
       - name: ydb-disk-manager
         securityContext:
           privileged: true
-        image: "cr.yandex/crpl7ipeu79oseqhcgn2/ydb-disk-manager:0.2.5"
+        image: "cr.yandex/crpl7ipeu79oseqhcgn2/ydb-disk-manager:0.2.8"
         imagePullPolicy: IfNotPresent
         resources:
           limits:
-            memory: 50Mi
+            memory: 128Mi
           requests:
-            cpu: 50m
-            memory: 10Mi
+            cpu: 100m
+            memory: 128Mi
         env:
           - name: DP_DISABLE_PRE_START_CONTAINER
             value: "true"
