@@ -7,4 +7,4 @@ data:
     diskMatch: {{ .Values.diskRegexp | quote }}
     hostProcPath: {{ .Values.hostProcPath | quote }}
     updateInterval: {{ .Values.updateInterval | quote }}
-    deviceCount: {{ .Values.deviceCount | quote }}
+    deviceCount: {{ .Values.deviceCount }}
