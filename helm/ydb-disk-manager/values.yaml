@@ -29,3 +29,4 @@ affinity: {}
 diskRegexp: ^sd[a-z][0-9]*$
 hostProcPath: /host/proc
 updateInterval: 30s
+deviceCount: 1
