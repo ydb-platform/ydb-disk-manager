@@ -11,12 +11,14 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
-func getDevices() []*pluginapi.Device {
+func getDevices(count uint) []*pluginapi.Device {
 	var devs []*pluginapi.Device
-	devs = append(devs, &pluginapi.Device{
-		ID:     strconv.Itoa(1),
-		Health: pluginapi.Healthy,
-	})
+	for i := 0; i < int(count); i++ {
+		devs = append(devs, &pluginapi.Device{
+			ID:     strconv.Itoa(i + 1),
+			Health: pluginapi.Healthy,
+		})
+	}
 
 	return devs
 }

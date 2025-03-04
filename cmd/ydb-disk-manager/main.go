@@ -22,6 +22,7 @@ type Config struct {
 	DiskMatch      string        `yaml:"diskMatch"`
 	HostProcPath   string        `yaml:"hostProcPath"`
 	UpdateInterval time.Duration `yaml:"updateInterval"`
+	DeviceCount    uint          `yaml:"deviceCount"`
 }
 
 var cfg Config
@@ -46,8 +47,9 @@ func main() {
 	klog.V(0).Infof("Reading configuration file %s", confFileName)
 	yamlFile, err := ioutil.ReadFile(confFileName)
 	if err != nil {
-		klog.Fatal("Reading configuration file failed with: %v", err)
+		klog.Fatalf("Reading configuration file failed with: %s", err)
 	}
+	cfg.DeviceCount = 1 // Default
 	err = yaml.Unmarshal(yamlFile, &cfg)
 	if err != nil {
 		klog.Fatal("Unmarshal: %v", err)
@@ -93,7 +95,7 @@ func runWatcherLoop(watcher *fsnotify.Watcher, sigs chan os.Signal) {
 			}
 
 			diskManager = hostdev.NewDiskmanager(tickerCh)
-			devicePluginInstance = api.NewDevicePlugin(diskManager)
+			devicePluginInstance = api.NewDevicePlugin(diskManager, cfg.DeviceCount)
 
 			if err := diskManager.UpdateDisks(cfg.DiskMatch, "/dev"); err != nil {
 				klog.V(0).Infof("Failed to update disks: %v", err)

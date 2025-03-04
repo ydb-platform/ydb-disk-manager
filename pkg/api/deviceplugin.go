@@ -41,9 +41,9 @@ type DevicePlugin struct {
 }
 
 // NewDevicePlugin returns an initialized DevicePlugin
-func NewDevicePlugin(hostDisks *hostdev.DiskManager) *DevicePlugin {
+func NewDevicePlugin(hostDisks *hostdev.DiskManager, deviceCount uint) *DevicePlugin {
 	return &DevicePlugin{
-		devs:   getDevices(),
+		devs:   getDevices(deviceCount),
 		stop:   make(chan interface{}),
 		health: make(chan *pluginapi.Device),
 
