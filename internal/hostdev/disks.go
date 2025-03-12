@@ -116,8 +116,8 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 		}
 	}
 
-	klog.V(5).Info("containerLocks map: %v", containerLocks)
-	klog.V(5).Infof("hostLocks map: %v", hostLocks)
+	klog.V(5).Infof("containerLocks: %v", containerLocks)
+	klog.V(5).Infof("hostLocks: %v", hostLocks)
 
 	for diskPath, _ := range containerLocks {
 		if _, exist := hostLocks[diskPath]; !exist {
@@ -142,7 +142,7 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 		}
 	}
 
-	klog.V(5).Infof("mgr.fileLocks.locks map: %v", mgr.fileLocks.locks)
+	klog.V(5).Infof("mgr.fileLocks.locks: %v", mgr.fileLocks.locks)
 
 	for diskPath, diskIno := range hostLocks {
 		if _, exist := containerLocks[diskPath]; !exist {
