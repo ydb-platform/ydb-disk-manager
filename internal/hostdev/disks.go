@@ -123,13 +123,10 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 		if _, exist := hostLocks[diskPath]; !exist {
 			klog.V(0).Infof("Lock exist in container, but not in host disk: %s", diskPath)
 
-			inoFromHost := uint64(0)
-			for ino, hostDiskPath := range mgr.DiskInodes {
-				if hostDiskPath == diskPath {
-					inoFromHost = ino
-					break
-				}
-			}
+			// Here we no longer care about disk inode in YDB pod, we need to memorize
+			// disk inode at host level to release it later. DiskInodes is a map from inode
+			// to disk path, here we need reverse lookup
+			inoFromHost := mgr.lookupHostInodeByDisk(diskPath)
 
 			klog.V(0).Infof("Setting lock to host disk: %s, inode %d...", diskPath, inoFromHost)
 			file, err := setLock(diskPath)
@@ -158,6 +155,24 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 	}
 
 	return nil
+}
+
+func (mgr *DiskManager) lookupHostInodeByDisk(diskPath string) uint64 {
+	inoFromHost := uint64(0)
+	for ino, hostDiskPath := range mgr.DiskInodes {
+		if hostDiskPath == diskPath {
+			inoFromHost = ino
+			break
+		}
+	}
+
+	if inoFromHost == 0 {
+		klog.Errorf(
+			"failed to discover host inode of disk %v, but the disk is present in hostLocks map. This is unexpected, probably a bug in logic",
+			diskPath,
+		)
+	}
+	return inoFromHost
 }
 
 func (mgr *DiskManager) SetLocks() error {
