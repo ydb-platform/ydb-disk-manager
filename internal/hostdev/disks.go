@@ -1,6 +1,7 @@
 package hostdev
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -103,6 +104,8 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 	var containerLocks = make(map[string]uint64)
 	var hostLocks = make(map[string]uint64)
 
+	klog.V(5).Infof("mgr.DiskInodes: %v", mgr.DiskInodes)
+
 	for diskIno, diskPath := range foundDiskLocks {
 		_, exist := mgr.DiskInodes[diskIno]
 		if !exist {
@@ -114,23 +117,37 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 		}
 	}
 
-	for diskPath, diskIno := range containerLocks {
+	klog.V(5).Infof("containerLocks: %v", containerLocks)
+	klog.V(5).Infof("hostLocks: %v", hostLocks)
+
+	for diskPath, _ := range containerLocks {
 		if _, exist := hostLocks[diskPath]; !exist {
-			// lock exist in container, but not in host disk
 			klog.V(0).Infof("Lock exist in container, but not in host disk: %s", diskPath)
-			klog.V(0).Infof("Setting lock to host disk: %s, inode %d...", diskPath, diskIno)
+
+			// Here we no longer care about disk inode in YDB pod, we need to memorize
+			// disk inode at host level to release it later. DiskInodes is a map from inode
+			// to disk path, here we need reverse lookup
+			inoFromHost, err := mgr.lookupHostInodeByDisk(diskPath)
+			if err != nil {
+				return err
+			}
+
+			klog.V(0).Infof("Setting lock to host disk: %s, inode %d...", diskPath, inoFromHost)
 			file, err := setLock(diskPath)
 			if err != nil {
 				return err
 			}
-			mgr.fileLocks.locks[diskIno] = file
+
+			klog.V(3).Infof("setting host lock, inode:%v, lockfile:%v to fileLocks", inoFromHost, file)
+			mgr.fileLocks.locks[inoFromHost] = file
 		}
 	}
+
+	klog.V(5).Infof("mgr.fileLocks.locks: %v", mgr.fileLocks.locks)
 
 	for diskPath, diskIno := range hostLocks {
 		if _, exist := containerLocks[diskPath]; !exist {
 			if file, exist := mgr.fileLocks.locks[diskIno]; exist {
-				// lock exist in host, but not in container disk
 				klog.V(0).Infof("Lock exist in host, but not in container disk: %s", diskPath)
 				klog.V(0).Infof("Releasing lock from host disk: %s, inode %d...", diskPath, diskIno)
 				if err := releaseLock(file); err != nil {
@@ -140,7 +157,26 @@ func (mgr *DiskManager) UpdateLocks(procPath string) error {
 			}
 		}
 	}
+
 	return nil
+}
+
+func (mgr *DiskManager) lookupHostInodeByDisk(diskPath string) (uint64, error) {
+	inoFromHost := uint64(0)
+	for ino, hostDiskPath := range mgr.DiskInodes {
+		if hostDiskPath == diskPath {
+			inoFromHost = ino
+			break
+		}
+	}
+
+	if inoFromHost == 0 {
+		return 0, fmt.Errorf(
+			"failed to discover host inode of disk %v, but the disk is present in hostLocks map. This is unexpected, probably a bug in logic",
+			diskPath,
+		)
+	}
+	return inoFromHost, nil
 }
 
 func (mgr *DiskManager) SetLocks() error {
