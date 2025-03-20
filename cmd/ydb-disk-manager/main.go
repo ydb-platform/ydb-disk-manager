@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,7 +44,7 @@ func main() {
 
 	// Setting up the disks to check
 	klog.V(0).Infof("Reading configuration file %s", confFileName)
-	yamlFile, err := ioutil.ReadFile(confFileName)
+	yamlFile, err := os.ReadFile(confFileName)
 	if err != nil {
 		klog.Fatalf("Reading configuration file failed with: %s", err)
 	}
