@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/ydb-platform/ydb-disk-manager/config"
 	"github.com/ydb-platform/ydb-disk-manager/internal/hostdev"
 	"github.com/ydb-platform/ydb-disk-manager/pkg/api"
 	"gopkg.in/yaml.v2"
@@ -18,14 +19,6 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
-type Config struct {
-	DiskMatch      string        `yaml:"diskMatch"`
-	HostProcPath   string        `yaml:"hostProcPath"`
-	UpdateInterval time.Duration `yaml:"updateInterval"`
-	DeviceCount    uint          `yaml:"deviceCount"`
-}
-
-var cfg Config
 var confFileName string
 
 func usage() {
@@ -49,6 +42,7 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Reading configuration file failed with: %s", err)
 	}
+	cfg := config.Config{}
 	cfg.DeviceCount = 1 // Default
 	err = yaml.Unmarshal(yamlFile, &cfg)
 	if err != nil {
@@ -77,10 +71,10 @@ func main() {
 		}
 	}()
 
-	runWatcherLoop(watcher, sigs)
+	runWatcherLoop(cfg, watcher, sigs)
 }
 
-func runWatcherLoop(watcher *fsnotify.Watcher, sigs chan os.Signal) {
+func runWatcherLoop(cfg config.Config, watcher *fsnotify.Watcher, sigs chan os.Signal) {
 	var diskManager *hostdev.DiskManager
 	var devicePluginInstance *api.DevicePlugin
 	ticker := time.NewTicker(cfg.UpdateInterval)
@@ -95,7 +89,7 @@ func runWatcherLoop(watcher *fsnotify.Watcher, sigs chan os.Signal) {
 			}
 
 			diskManager = hostdev.NewDiskmanager(tickerCh)
-			devicePluginInstance = api.NewDevicePlugin(diskManager, cfg.DeviceCount)
+			devicePluginInstance = api.NewDevicePlugin(diskManager, cfg)
 
 			if err := diskManager.UpdateDisks(cfg.DiskMatch, "/dev"); err != nil {
 				klog.V(0).Infof("Failed to update disks: %v", err)
