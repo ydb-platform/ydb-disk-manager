@@ -54,7 +54,7 @@ func main() {
 	klog.V(0).Info("Starting FS watcher.")
 	watcher, err := newFSWatcher(pluginapi.DevicePluginPath)
 	if err != nil {
-		klog.Error("Failed to create FS watcher.")
+		klog.Error("Failed to create FS watcher: %v", err)
 		os.Exit(1)
 	}
 	defer watcher.Close()
