@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 
+	"github.com/ydb-platform/ydb-disk-manager/config"
 	"github.com/ydb-platform/ydb-disk-manager/internal/hostdev"
 	"github.com/ydb-platform/ydb-disk-manager/proto/locks"
 	pb "github.com/ydb-platform/ydb-disk-manager/proto/locks"
@@ -38,16 +39,19 @@ type DevicePlugin struct {
 	server *grpc.Server
 
 	disks *hostdev.DiskManager
+
+	cfg config.Config
 }
 
 // NewDevicePlugin returns an initialized DevicePlugin
-func NewDevicePlugin(hostDisks *hostdev.DiskManager, deviceCount uint) *DevicePlugin {
+func NewDevicePlugin(hostDisks *hostdev.DiskManager, cfg config.Config) *DevicePlugin {
 	return &DevicePlugin{
-		devs:   getDevices(deviceCount),
+		devs:   getDevices(cfg.DeviceCount),
 		stop:   make(chan interface{}),
 		health: make(chan *pluginapi.Device),
 
 		disks: hostDisks,
+		cfg:   cfg,
 	}
 }
 
@@ -173,6 +177,14 @@ func (plugin *DevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.Alloca
 	devs := plugin.devs
 	responses := pluginapi.AllocateResponse{}
 	var devices []*pluginapi.DeviceSpec
+
+	for _, req := range reqs.ContainerRequests {
+		klog.V(0).Infof("Allocation request incoming: device IDs %v\n", req.DevicesIDs)
+	}
+
+	plugin.disks.UpdateDisks(plugin.cfg.DiskMatch, "/dev")
+
+	klog.V(0).Infof("Going to allocate following devices: %v\n", plugin.disks.DiskFilenames)
 
 	// This is the important part - we push all the disk devices we know about
 	// instead of the meta-device 'ydb-disk-manager/hostdev'

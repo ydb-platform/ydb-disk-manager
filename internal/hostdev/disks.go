@@ -17,8 +17,10 @@ type FileLock struct {
 type DiskManager struct {
 	DiskFilenames []string
 	DiskInodes    map[uint64]string
-	fileLocks     FileLock
-	tickerChan    chan<- bool
+
+	diskFilenamesLock sync.Mutex
+	fileLocks         FileLock
+	tickerChan        chan<- bool
 }
 
 // NewSmarterDevicePlugin returns an initialized SmarterDevicePlugin
@@ -33,6 +35,9 @@ func NewDiskmanager(ch chan<- bool) *DiskManager {
 }
 
 func (mgr *DiskManager) UpdateDisks(diskRegexp string, devDir string) error {
+	mgr.diskFilenamesLock.Lock()
+	defer mgr.diskFilenamesLock.Unlock()
+
 	existingDisks, err := readDevDirectory(devDir, 10)
 	if err != nil {
 		return err
@@ -45,7 +50,7 @@ func (mgr *DiskManager) UpdateDisks(diskRegexp string, devDir string) error {
 
 	// Check for new disks
 	for _, diskToAppend := range matchedDisks {
-		diskPath := filepath.Join("/dev", diskToAppend)
+		diskPath := filepath.Join(devDir, diskToAppend)
 		diskIno, err := readInode(diskPath)
 		if err != nil {
 			return err
@@ -65,11 +70,11 @@ func (mgr *DiskManager) UpdateDisks(diskRegexp string, devDir string) error {
 	}
 
 	// Check for removed disks
-	temp := mgr.DiskFilenames[:0]
+	temp := []string{}
 	for _, existingDisk := range mgr.DiskFilenames {
 		shouldRemove := true
 		for _, diskToRemove := range matchedDisks {
-			diskPath := filepath.Join("/dev", diskToRemove)
+			diskPath := filepath.Join(devDir, diskToRemove)
 			if existingDisk == diskPath {
 				temp = append(temp, existingDisk)
 				shouldRemove = false
