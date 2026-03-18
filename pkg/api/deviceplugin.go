@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -37,7 +39,9 @@ type DevicePlugin struct {
 	health chan *pluginapi.Device
 	server *grpc.Server
 
-	disks *hostdev.DiskManager
+	disks    *hostdev.DiskManager
+	stopOnce sync.Once
+	stopErr  error
 }
 
 // NewDevicePlugin returns an initialized DevicePlugin
@@ -81,27 +85,29 @@ func (plugin *DevicePlugin) Start() error {
 
 // Stop the gRPC server
 func (plugin *DevicePlugin) Stop() error {
-	klog.V(0).Infof("Stopping device %s", ResourceName)
-	if plugin.server == nil {
-		return nil
-	}
+	plugin.stopOnce.Do(func() {
+		klog.V(0).Infof("Stopping device %s", ResourceName)
+		if plugin.server == nil {
+			return
+		}
+		klog.V(0).Infof("Stop server with socket %s", SocketPath)
+		plugin.server.Stop()
+		plugin.server = nil
+		close(plugin.stop)
 
-	klog.V(0).Info("Releasing locks from host disks")
-	if err := plugin.disks.ReleaseLocks(); err != nil {
-		return err
-	}
+		klog.V(0).Info("Releasing locks from host disks")
+		if err := plugin.disks.ReleaseLocks(); err != nil {
+			klog.Errorf("Failed to release locks: %v", err)
+			plugin.stopErr = errors.Join(plugin.stopErr, err)
+		}
 
-	klog.V(0).Infof("Stop server with socket %s", SocketPath)
-	plugin.server.Stop()
-	plugin.server = nil
-	close(plugin.stop)
-
-	klog.V(0).Infof("Remove file %s", SocketPath)
-	if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	return nil
+		klog.V(0).Infof("Remove file %s", SocketPath)
+		if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
+			klog.Errorf("Failed to remove socket file %s: %v", SocketPath, err)
+			plugin.stopErr = errors.Join(plugin.stopErr, err)
+		}
+	})
+	return plugin.stopErr
 }
 
 // Register the device plugin for the given resourceName with Kubelet.
