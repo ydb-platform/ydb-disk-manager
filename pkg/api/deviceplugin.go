@@ -36,7 +36,6 @@ const (
 type DevicePlugin struct {
 	devs   []*pluginapi.Device
 	stop   chan interface{}
-	health chan *pluginapi.Device
 	server *grpc.Server
 
 	disks    *hostdev.DiskManager
@@ -47,9 +46,8 @@ type DevicePlugin struct {
 // NewDevicePlugin returns an initialized DevicePlugin
 func NewDevicePlugin(hostDisks *hostdev.DiskManager, deviceCount uint) *DevicePlugin {
 	return &DevicePlugin{
-		devs:   getDevices(deviceCount),
-		stop:   make(chan interface{}),
-		health: make(chan *pluginapi.Device),
+		devs: getDevices(deviceCount),
+		stop: make(chan interface{}),
 
 		disks: hostDisks,
 	}
@@ -144,7 +142,7 @@ func (plugin *DevicePlugin) Register(kubeletEndpoint string) error {
 	return nil
 }
 
-// ListAndWatch lists devices and update that list according to the health status
+// ListAndWatch lists devices and watches for plugin stop signals.
 func (plugin *DevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DevicePlugin_ListAndWatchServer) error {
 	if err := s.Send(&pluginapi.ListAndWatchResponse{Devices: plugin.devs}); err != nil {
 		klog.Errorf("ListAndWatch %s error: cannot update device states: %v\n", ResourceName, err)
@@ -162,14 +160,6 @@ func (plugin *DevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DeviceP
 			return nil
 		case <-plugin.stop:
 			return nil
-		case d := <-plugin.health:
-			klog.Errorf("%s device health changed", ResourceName)
-			d.Health = pluginapi.Unhealthy
-			if err := s.Send(&pluginapi.ListAndWatchResponse{Devices: plugin.devs}); err != nil {
-				klog.Errorf("ListAndWatch %s error: cannot update device states: %v\n", ResourceName, err)
-				plugin.Stop()
-				return err
-			}
 		}
 	}
 }
