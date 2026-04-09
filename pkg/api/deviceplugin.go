@@ -85,12 +85,11 @@ func (plugin *DevicePlugin) Start() error {
 func (plugin *DevicePlugin) Stop() error {
 	plugin.stopOnce.Do(func() {
 		klog.V(0).Infof("Stopping device %s", ResourceName)
-		if plugin.server == nil {
-			return
+		if plugin.server != nil {
+			klog.V(0).Infof("Stop server with socket %s", SocketPath)
+			plugin.server.Stop()
+			plugin.server = nil
 		}
-		klog.V(0).Infof("Stop server with socket %s", SocketPath)
-		plugin.server.Stop()
-		plugin.server = nil
 		close(plugin.stop)
 
 		klog.V(0).Info("Releasing locks from host disks")
