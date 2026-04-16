@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -34,18 +36,18 @@ const (
 type DevicePlugin struct {
 	devs   []*pluginapi.Device
 	stop   chan interface{}
-	health chan *pluginapi.Device
 	server *grpc.Server
 
-	disks *hostdev.DiskManager
+	disks    *hostdev.DiskManager
+	stopOnce sync.Once
+	stopErr  error
 }
 
 // NewDevicePlugin returns an initialized DevicePlugin
 func NewDevicePlugin(hostDisks *hostdev.DiskManager, deviceCount uint) *DevicePlugin {
 	return &DevicePlugin{
-		devs:   getDevices(deviceCount),
-		stop:   make(chan interface{}),
-		health: make(chan *pluginapi.Device),
+		devs: getDevices(deviceCount),
+		stop: make(chan interface{}),
 
 		disks: hostDisks,
 	}
@@ -81,27 +83,28 @@ func (plugin *DevicePlugin) Start() error {
 
 // Stop the gRPC server
 func (plugin *DevicePlugin) Stop() error {
-	klog.V(0).Infof("Stopping device %s", ResourceName)
-	if plugin.server == nil {
-		return nil
-	}
+	plugin.stopOnce.Do(func() {
+		klog.V(0).Infof("Stopping device %s", ResourceName)
+		if plugin.server != nil {
+			klog.V(0).Infof("Stop server with socket %s", SocketPath)
+			plugin.server.Stop()
+			plugin.server = nil
+		}
+		close(plugin.stop)
 
-	klog.V(0).Info("Releasing locks from host disks")
-	if err := plugin.disks.ReleaseLocks(); err != nil {
-		return err
-	}
+		klog.V(0).Info("Releasing locks from host disks")
+		if err := plugin.disks.ReleaseLocks(); err != nil {
+			klog.Errorf("Failed to release locks: %v", err)
+			plugin.stopErr = errors.Join(plugin.stopErr, err)
+		}
 
-	klog.V(0).Infof("Stop server with socket %s", SocketPath)
-	plugin.server.Stop()
-	plugin.server = nil
-	close(plugin.stop)
-
-	klog.V(0).Infof("Remove file %s", SocketPath)
-	if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	return nil
+		klog.V(0).Infof("Remove file %s", SocketPath)
+		if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
+			klog.Errorf("Failed to remove socket file %s: %v", SocketPath, err)
+			plugin.stopErr = errors.Join(plugin.stopErr, err)
+		}
+	})
+	return plugin.stopErr
 }
 
 // Register the device plugin for the given resourceName with Kubelet.
@@ -138,7 +141,7 @@ func (plugin *DevicePlugin) Register(kubeletEndpoint string) error {
 	return nil
 }
 
-// ListAndWatch lists devices and update that list according to the health status
+// ListAndWatch lists devices and watches for plugin stop signals.
 func (plugin *DevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DevicePlugin_ListAndWatchServer) error {
 	if err := s.Send(&pluginapi.ListAndWatchResponse{Devices: plugin.devs}); err != nil {
 		klog.Errorf("ListAndWatch %s error: cannot update device states: %v\n", ResourceName, err)
@@ -156,14 +159,6 @@ func (plugin *DevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DeviceP
 			return nil
 		case <-plugin.stop:
 			return nil
-		case d := <-plugin.health:
-			klog.Errorf("%s device health changed", ResourceName)
-			d.Health = pluginapi.Unhealthy
-			if err := s.Send(&pluginapi.ListAndWatchResponse{Devices: plugin.devs}); err != nil {
-				klog.Errorf("ListAndWatch %s error: cannot update device states: %v\n", ResourceName, err)
-				plugin.Stop()
-				return err
-			}
 		}
 	}
 }
